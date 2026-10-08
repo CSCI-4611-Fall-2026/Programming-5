@@ -11,7 +11,14 @@ export class App extends gfx.GfxApp
     private ground: gfx.Mesh3;
     private skybox: gfx.Mesh3;
 
-    private cameraControls: gfx.FirstPersonControls;
+    private box: gfx.Mesh3;
+    private cylinder: gfx.Mesh3;
+    private cylinderMovementSpeed: number;
+
+    private debugBox: gfx.Mesh3;
+    private debugCylinder: gfx.Mesh3;
+
+    private cameraControls: gfx.OrbitControls;
 
     // --- Create the App class ---
     constructor()
@@ -21,8 +28,15 @@ export class App extends gfx.GfxApp
 
         this.ground = gfx.Geometry3Factory.createBox(10, 1, 10);
         this.skybox = gfx.Geometry3Factory.createBox(100, 100, 100);
+        this.box = gfx.Geometry3Factory.createBox(1, 1, 1);
+        this.cylinder = gfx.Geometry3Factory.createCylinder(16, 0.5, 2);
 
-        this.cameraControls = new gfx.FirstPersonControls(this.camera);
+        this.debugBox = this.box.createInstance();
+        this.debugCylinder = this.cylinder.createInstance();
+
+        this.cylinderMovementSpeed = 2; // meters per second
+
+        this.cameraControls = new gfx.OrbitControls(this.camera);
     }
 
 
@@ -36,7 +50,10 @@ export class App extends gfx.GfxApp
         // Note that in a right-handed coordinate system, the camera looks down the -z axis.
         // The camera is positioned 1.5m above the ground and 10m in the +z direction,
         // so that an object placed at the origin will be visible in the camera's view.
-        this.camera.position.set(0, 1.5, 5);
+        //this.camera.position.set(0, 1.5, 5);
+
+        this.cameraControls.setTargetPoint(new gfx.Vector3(0, 1.5, 0));
+        this.cameraControls.setDistance(5);
 
         // Create an ambient light that illuminates everything in the scene
         const ambientLight = new gfx.AmbientLight(new gfx.Color(0.4, 0.4, 0.4));
@@ -61,17 +78,74 @@ export class App extends gfx.GfxApp
         skyBoxMaterial.setColor(new gfx.Color(0.698, 1, 1));
         this.skybox.material = skyBoxMaterial;
 
+        const boxMaterial = new gfx.GouraudMaterial();
+        boxMaterial.texture = new gfx.Texture("./Marble012_1K-JPG_Color.jpg");
+        boxMaterial.setColor(new gfx.Color(1.5, 1.5, 1.5));
+        this.box.material = boxMaterial;
+
+        this.box.position.set(0, 1.5, 0);
+
+        const cylinderMaterial = new gfx.GouraudMaterial();
+        cylinderMaterial.setColor(new gfx.Color(0, 0, 1));
+        this.cylinder.material = cylinderMaterial;
+
+        this.cylinder.position.set(-2, 1, 1);
+
+        // Add the debug objects as children of the box and cylinder,
+        // so that they move with the objects.
+        this.box.add(this.debugBox);
+        this.cylinder.add(this.debugCylinder);
+
+        // Rotate the box by 45 degrees about the Y axis
+        //this.box.rotation.setAxisAngle(new gfx.Vector3(0, 1, 0), Math.PI / 4);
+        this.box.rotation.setRotationY(Math.PI / 4);
+
+        // Rotate the cylinder by 45 degrees about the Z axis
+        this.cylinder.rotation.setRotationZ(Math.PI / 4);
+
+        const debugMaterial = new gfx.BoundingVolumeMaterial();
+        debugMaterial.mode = gfx.BoundingVolumeMode.AXIS_ALIGNED_BOUNDING_BOX;
+        debugMaterial.setColor(new gfx.Color(0, 1, 0));
+        this.debugBox.material = debugMaterial;
+        this.debugCylinder.material = debugMaterial;
+
         // Add the lights, ground, skybox, and sphere to the scene.
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
         this.scene.add(this.ground);
         this.scene.add(this.skybox);
+        this.scene.add(this.box);
+        this.scene.add(this.cylinder);
     }
 
     
     // --- Update is called once each frame by the main graphics loop ---
     update(deltaTime: number): void 
     {
+        this.cylinder.position.x += this.cylinderMovementSpeed * deltaTime;
+
+        if(this.cylinder.position.x > 5)
+        {
+            this.cylinder.position.x = 5;
+            this.cylinderMovementSpeed *= -1;
+        }
+        else if(this.cylinder.position.x < -5)
+        {
+            this.cylinder.position.x = -5;
+            this.cylinderMovementSpeed *= -1;
+        }
+
+        if(this.box.intersects(this.cylinder, gfx.IntersectionMode3.AXIS_ALIGNED_BOUNDING_BOX))
+        {
+            this.box.material.setColor(new gfx.Color(1.5, 0, 0));
+            this.cylinder.material.setColor(new gfx.Color(1, 0, 0));
+        }
+        else
+        {
+            this.box.material.setColor(new gfx.Color(1.5, 1.5, 1.5));
+            this.cylinder.material.setColor(new gfx.Color(0, 0, 1));
+        }
+
         // The camera controls need to be called in the update loop.
         // They require deltaTime to compute the camera movement
         // using a consistent translation and rotation speed.
